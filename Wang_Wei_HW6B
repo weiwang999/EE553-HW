@@ -1,0 +1,155 @@
+#include <cstdint>
+#include <iostream>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image.h"
+#include "stb_image_write.h"
+#include <memory.h>
+using namespace std;
+
+/*
+  You have to write:
+  1. Constructor (that allocates dynamic memory)
+  2. Destructor (free the memory delete [])
+  3. Copy Constructor
+  4. Operator = (use either old way or copy and swap)
+  5. Move Constructor
+ */
+
+class DynamicBitmap {
+private:
+    uint32_t w, h;
+    uint32_t* pixels;
+
+
+public:
+    DynamicBitmap(uint32_t w, uint32_t h, uint32_t color) : w(w), h(h), pixels(new uint32_t[w * h]) {
+        for(int i = 0; i < w * h; i ++) {
+            pixels[i] = color;
+        }
+    }
+
+    DynamicBitmap(): w(0), h(0), pixels(nullptr) {}
+
+    ~DynamicBitmap() {
+        delete [] pixels;
+    }
+
+    //Copy Constructor
+    DynamicBitmap(const DynamicBitmap& orig): w(orig.w), h(orig.h), pixels(new uint32_t[orig.w * orig.h]) {
+        memcpy(pixels, orig.pixels, sizeof(uint32_t) * w * h);
+    }
+
+    // Operator =
+    DynamicBitmap& operator =(DynamicBitmap orig) {
+        w = orig.w;
+        h = orig.h;
+        swap(pixels,orig.pixels);
+        return *this;
+    }
+
+    //Move Constructor
+    DynamicBitmap(DynamicBitmap&& orig): w(orig.w), h(orig.h), pixels(orig.pixels) {
+        orig.pixels = nullptr;
+    }
+
+    void horizLine(uint32_t x1, uint32_t x2, uint32_t y, uint32_t color) {
+        for (uint32_t x = x1; x < x2; x++) {
+            pixels[y * w + x] = color;
+        }
+    }
+
+    void vertLine(uint32_t y1, uint32_t y2, uint32_t x, uint32_t color) {
+        for (uint32_t y = y1; y < y2; y++) {
+            pixels[y * w + x] = color;
+        }
+    }
+
+    void drawRect(uint32_t x1, uint32_t y1, uint32_t W, uint32_t H, uint32_t color) {
+        for (uint32_t y = y1;  y <= y1 + H; y = y + H) {
+            for (uint32_t x = x1; x <= x1 + W; x++) {
+                pixels[y * w + x] = color;}
+        }
+        for (uint32_t x = x1; x <= x1 + W; x = x + W) {
+            for (uint32_t y = y1; y <= y1 + H; y++) {
+                pixels[y * w + x] = color;}
+        }
+    }
+
+    void fillRect(uint32_t x0, uint32_t y0, uint32_t W, uint32_t H, uint32_t color) {
+        for (uint32_t y = y0; y <= y0 + H; y ++) {
+            for (uint32_t x = x0; x <= x0 + W; x ++) {
+                pixels[y * w + x] = color;}
+        }
+    }
+
+    void line(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color) {
+        int dx = x2 - x1, dy = y2 - y1;
+        int Dx = abs(dx), Dy = abs(dy);
+        double m = Dy / Dx;
+        if (x1 > x2) {
+            swap(x1, x2);
+            swap(y1, y2);
+        }
+        pixels[y1 * w + x1] = color;
+        if (m > 1) {
+            swap(x1, y1);
+            swap(x2, y2);
+        }
+        int p = 2 * Dy - Dx, y = y1;
+        for (int x = x1 + 1; x <= x2; x++) {
+            if (p < 0)
+                p += 2 * Dy;
+            else {
+                y++;
+                p += 2 * (Dy - Dx);
+            }
+            if (m > 1) { pixels[x * w + y] = color; }
+            else { pixels[y * w + x] = color; }
+        }
+    }
+
+    void ellipse(uint32_t xcenter, uint32_t ycenter, uint32_t xdiameter, uint32_t ydiameter) {
+        constexpr uint32_t PINK = 0xFFFF00FF;
+        uint32_t color = PINK;
+        int x,y;
+        int Ry = ydiameter / 2;
+        int Rx = xdiameter / 2;
+        const double PI = 3.1415926;
+        double del = 0.0001;
+        for (double i = -PI; i < PI; i = i + del) {
+            y = ycenter + Ry * sin(i);
+            x = xcenter + Rx * cos(i);
+            pixels[y * w + x] = color;
+        }
+    }
+
+    void save(const char filename[]) {
+        stbi_write_png(filename, w, h, 4, pixels, w * 4);
+    }
+};
+
+int main() {
+    // FIRST PART (ADD COLORS HERE)
+    constexpr uint32_t BLACK = 0xFF000000; // black opaque
+    constexpr uint32_t RED = 0xFF0000FF; // red opaque
+    constexpr uint32_t BLUE = 0xFFFF0000; // blue opaque
+    constexpr uint32_t WHITE = 0xFFFFFFFF; // white opaque
+    constexpr uint32_t YELLOW = 0xFF00FFFF; // yellow opaque
+
+
+    // SECOND PART (DO NOT EDIT)
+    int xcenter = 100;
+    int ycenter = 100;
+    int xdiameter = 200;
+    int ydiameter = 100;
+
+    DynamicBitmap b(1024, 1024, BLACK); // Potentially dynamic size (Now: 1024 x 1024 pixels)
+    b.horizLine(0, 500, 200, RED); // horizontal line from x=0 to x=500, @y = 200
+    b.vertLine(0, 399, 300, RED); // y=0 to y=399 @ x= 300, red vertical line
+    b.drawRect(200,200, 100,50, BLUE); // blue rectangle, top-left=200,200 w=100 h=50
+    b.fillRect(201,201, 98,48, WHITE); // same but fill
+    b.line(400,0, 550,300, YELLOW); // draw a line https://en.wikipedia.org/wiki/Bresenham's_line_algorithm
+    b.ellipse(xcenter, ycenter, xdiameter, ydiameter);
+    b.save("bitmap.png");
+
+}
